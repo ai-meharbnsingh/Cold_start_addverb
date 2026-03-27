@@ -49,7 +49,7 @@ def _base_config(zones: list) -> dict:
         "engine": {"D": 10000, "beta": 4.0, "dt": 0.05,
                     "seed": 42, "generated_patterns": 15,
                     "n_scans_per_zone": 5},
-        "cold_start": {"saved_state_file": "/tmp/iogita_last_state.json",
+        "cold_start": {"saved_state_file": "/var/lib/iogita/last_state.json",
                        "confidence_threshold": 0.6, "max_hint_zones": 5,
                        "teleport_confidence": 0.3,
                        "recovery_strategy": "nearest_barcode",

@@ -128,12 +128,14 @@ engine:
   generated_patterns: 15
 
 # -- COLD START SETTINGS -------------------------------------------
+# IMPORTANT: saved_state_file MUST be on a persistent filesystem.
+# /tmp/ is cleared on reboot — losing saved zone defeats cold start recovery.
+# Use /var/lib/iogita/ or a path on the robot's persistent storage.
 cold_start:
-  saved_state_file: "/tmp/iogita_last_state.json"
+  saved_state_file: "/var/lib/iogita/last_state.json"   # Persistent across reboots
   confidence_threshold: 0.6
   max_hint_zones: 5
   teleport_confidence: 0.3
-  # How far can a robot drift between barcodes during restart?
   max_drift_barcodes: 3             # Max barcode positions robot could drift
   recovery_strategy: "nearest_barcode"  # Route to nearest barcode in predicted zone
 
@@ -150,8 +152,20 @@ map_change:
   mismatch_threshold: 3
   feature_tolerance: 0.3
 
-# -- DEBUG ---------------------------------------------------------
+# -- LOGGING -------------------------------------------------------
+# Structured JSON logging for fleet-wide post-mortem analysis.
+# Every zone hint, fallback activation, and map change is logged.
+logging:
+  enabled: true
+  log_dir: "/var/lib/iogita/logs"     # Persistent log directory
+  zone_hints_log: "zone_hints.jsonl"  # One JSON line per zone identification
+  events_log: "events.jsonl"          # Cold starts, fallbacks, map changes
+  max_file_size_mb: 50                # Rotate after 50MB
+  max_files: 10                       # Keep 10 rotated files
+  verbose: false
+
+# -- DEBUG (development only) --------------------------------------
 debug:
   enabled: true
-  log_file: "/tmp/iogita_debug.jsonl"
+  log_file: "/tmp/iogita_debug.jsonl"  # /tmp is OK for debug — not critical
   verbose: false
