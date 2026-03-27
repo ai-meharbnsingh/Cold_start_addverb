@@ -1,1 +1,0 @@
-<content of the INTEGRATION_GUIDE.md file>
