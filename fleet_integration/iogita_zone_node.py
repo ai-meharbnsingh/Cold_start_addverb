@@ -147,31 +147,82 @@ class ProtocolV1Parser:
      CurrentNode | ObstacleRange | ObstacleDetected | ...]
     """
 
+    # Valid ranges for sanity checking
+    BATTERY_MIN, BATTERY_MAX = 0.0, 100.0
+    VELOCITY_MIN, VELOCITY_MAX = -5.0, 5.0
+    OBSTACLE_MIN, OBSTACLE_MAX = 0.0, 50.0
+    POSE_MIN, POSE_MAX = -10000.0, 10000.0
+    VALID_STATES = {
+        "IDLE", "MOVING", "CHARGING", "ERROR", "DOCKING",
+        "LOADING", "UNLOADING", "WAITING", "DISCONNECTED",
+    }
+
     @staticmethod
     def parse(raw_message: str) -> Optional[dict]:
-        """Parse Protocol V1 message into robot state dict."""
+        """Parse Protocol V1 message into robot state dict with validation."""
         try:
+            if not raw_message or not raw_message.strip():
+                return None
+
             fields = raw_message.strip().split("|")
             if len(fields) < 14:
                 return None
 
+            timestamp = float(fields[0])
+            robot_id = fields[1].strip()
+            pose_x = float(fields[2])
+            pose_y = float(fields[3])
+            pose_theta = float(fields[4])
+            state = fields[5].strip()
+            battery_soc = float(fields[6])
+            linear_vel = float(fields[7])
+            angular_vel = float(fields[8])
+            error_code = int(fields[9])
+            task_id = fields[10].strip()
+            current_node = int(fields[11])
+            obstacle_range = float(fields[12])
+            obstacle_detected = fields[13].strip() == "1"
+
+            # Validate ranges — clamp to sane values
+            battery_soc = max(ProtocolV1Parser.BATTERY_MIN,
+                              min(battery_soc, ProtocolV1Parser.BATTERY_MAX))
+            linear_vel = max(ProtocolV1Parser.VELOCITY_MIN,
+                             min(linear_vel, ProtocolV1Parser.VELOCITY_MAX))
+            angular_vel = max(ProtocolV1Parser.VELOCITY_MIN,
+                              min(angular_vel, ProtocolV1Parser.VELOCITY_MAX))
+            obstacle_range = max(ProtocolV1Parser.OBSTACLE_MIN,
+                                 min(obstacle_range,
+                                     ProtocolV1Parser.OBSTACLE_MAX))
+            pose_x = max(ProtocolV1Parser.POSE_MIN,
+                         min(pose_x, ProtocolV1Parser.POSE_MAX))
+            pose_y = max(ProtocolV1Parser.POSE_MIN,
+                         min(pose_y, ProtocolV1Parser.POSE_MAX))
+
+            # Validate robot_id is non-empty
+            if not robot_id:
+                return None
+
+            # Validate timestamp is reasonable (not zero, not far future)
+            if timestamp <= 0:
+                return None
+
             return {
-                "timestamp": float(fields[0]),
-                "robot_id": fields[1].strip(),
-                "pose_x": float(fields[2]),
-                "pose_y": float(fields[3]),
-                "pose_theta": float(fields[4]),  # radians
-                "state": fields[5].strip(),
-                "battery_soc": float(fields[6]),
-                "linear_vel": float(fields[7]),
-                "angular_vel": float(fields[8]),
-                "error_code": int(fields[9]),
-                "task_id": fields[10].strip(),
-                "current_node": int(fields[11]),
-                "obstacle_range": float(fields[12]),
-                "obstacle_detected": fields[13].strip() == "1",
+                "timestamp": timestamp,
+                "robot_id": robot_id,
+                "pose_x": pose_x,
+                "pose_y": pose_y,
+                "pose_theta": pose_theta,
+                "state": state,
+                "battery_soc": battery_soc,
+                "linear_vel": linear_vel,
+                "angular_vel": angular_vel,
+                "error_code": error_code,
+                "task_id": task_id,
+                "current_node": current_node,
+                "obstacle_range": obstacle_range,
+                "obstacle_detected": obstacle_detected,
             }
-        except (ValueError, IndexError):
+        except (ValueError, IndexError, TypeError):
             return None
 
 
