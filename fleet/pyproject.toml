@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iogita-cold-start-addverb"
+version = "2.0.2"
+description = "io-gita Cold Start Recovery — Addverb Fleet_Core Integration"
+requires-python = ">=3.11,<3.12"  # Binary .so is cpython-311 ONLY
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["sg_engine*", "sg_engine_locked*", "fleet_integration*"]
+
+[tool.setuptools.package-data]
+sg_engine = ["*.so"]
+fleet_integration = ["*.yaml"]

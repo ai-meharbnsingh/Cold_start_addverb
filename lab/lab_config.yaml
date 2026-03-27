@@ -1,0 +1,48 @@
+# =====================================================
+# LAB WAREHOUSE — 5 Zones for Single Robot Testing
+# =====================================================
+# Edit zone names and positions to match your lab layout.
+# Keep it simple — this is for proving cold start timing.
+
+warehouse:
+  name: "ADDVERB_LAB"
+  grid_spacing_m: 0.8           # Barcode grid spacing
+
+zones:
+  - name: "DOCK"
+    row: 0
+    col: 0
+    type: "dock"
+    heading: 90                  # Robot faces East entering this zone
+
+  - name: "AISLE"
+    row: 0
+    col: 1
+    type: "aisle"
+    heading: 90
+
+  - name: "SHELF_1"
+    row: 1
+    col: 1
+    type: "shelf"
+    heading: 0                   # Robot faces North
+
+  - name: "SHELF_2"
+    row: 1
+    col: 0
+    type: "shelf"
+    heading: 180
+
+  - name: "CHARGER"
+    row: 1
+    col: 2
+    type: "charging"
+    heading: 270
+
+# Engine parameters — do NOT change
+engine:
+  D: 10000
+  beta: 4.0
+  dt: 0.05
+  seed: 42
+  generated_patterns: 15

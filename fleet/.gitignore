@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# io-gita runtime state
+/tmp/iogita_*.json
+/tmp/iogita_*.npz
+/tmp/iogita_*.jsonl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+*.env
+
+# Test
+.pytest_cache/
+htmlcov/
+.coverage
