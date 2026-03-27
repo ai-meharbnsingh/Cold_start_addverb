@@ -1,0 +1,14 @@
+{
+  "demo": "simple_5_zone",
+  "note": "Reference results — run cold_start_demo.py to regenerate",
+  "primary_zone": "SHELF_1",
+  "confidence": 0.90,
+  "method": "GRAPH_FP_RANKED",
+  "ode_time_ms": 0.8,
+  "total_pipeline_ms": 1.2,
+  "candidates": ["SHELF_1", "HUB", "AISLE_1"],
+  "sensor_suite": "addverb_actual",
+  "obstacle_sensor": "+-15deg_1.5m",
+  "localization": "barcode_grid_0.8m",
+  "protocol": "tcp_v1_port_65123"
+}
