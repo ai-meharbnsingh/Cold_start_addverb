@@ -160,3 +160,31 @@ class TestZoneIdentifier:
 
         loaded = zid._load_last_state()
         assert loaded == "HUB"
+
+    def test_load_corrupt_state_returns_none(self, zid, tmp_path):
+        """Fix #3: Corrupt state file must not crash recovery."""
+        state_file = tmp_path / "corrupt_state.json"
+        state_file.write_text("{broken json!!! not valid")
+        zid.config["cold_start"]["saved_state_file"] = str(state_file)
+        result = zid._load_last_state()
+        assert result is None
+
+    def test_load_empty_state_returns_none(self, zid, tmp_path):
+        state_file = tmp_path / "empty_state.json"
+        state_file.write_text("")
+        zid.config["cold_start"]["saved_state_file"] = str(state_file)
+        result = zid._load_last_state()
+        assert result is None
+
+    def test_load_nondict_state_returns_none(self, zid, tmp_path):
+        state_file = tmp_path / "array_state.json"
+        state_file.write_text("[1, 2, 3]")
+        zid.config["cold_start"]["saved_state_file"] = str(state_file)
+        result = zid._load_last_state()
+        assert result is None
+
+    def test_load_missing_state_returns_none(self, zid, tmp_path):
+        zid.config["cold_start"]["saved_state_file"] = str(
+            tmp_path / "nonexistent.json")
+        result = zid._load_last_state()
+        assert result is None

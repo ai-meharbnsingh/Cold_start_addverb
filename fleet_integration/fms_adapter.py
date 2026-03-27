@@ -283,7 +283,26 @@ class ColdStartOrchestrator:
         hint = self.zid.get_cold_start_hint(first_sensor_data, robot_type)
         identification_time = (time.time() - t0) * 1000
 
-        # Step 2: Send hint to FMS
+        # Step 2: Validate zone before sending to FMS
+        primary_zone = hint.get("primary_zone")
+        confidence = hint.get("confidence", 0.0)
+
+        if primary_zone is None:
+            self._log(f"Cold start: {robot_id} -> zone UNRESOLVED "
+                      f"(io-gita could not identify zone)")
+            recovery_plan = {
+                "robot_id": robot_id,
+                "status": "RECOVERY_FAILED",
+                "identification_time_ms": round(identification_time, 2),
+                "hint": hint,
+                "fms_acknowledged": False,
+                "action": "ZONE_UNRESOLVED — fallback to blind search",
+                "timestamp": time.time(),
+            }
+            self.recovery_active = False
+            return recovery_plan
+
+        # Step 3: Send hint to FMS
         fms_ack = False
         if self.adapter:
             if isinstance(self.adapter, FmsRestAdapter):
@@ -291,25 +310,25 @@ class ColdStartOrchestrator:
             elif isinstance(self.adapter, FmsTcpAdapter):
                 fms_ack = self.adapter.send_zone_hint_v1(
                     robot_id,
-                    hint["primary_zone"],
-                    hint["confidence"],
-                    hint["candidate_zones"],
+                    primary_zone,
+                    confidence,
+                    hint.get("candidate_zones", []),
                 )
 
-        # Step 3: Build recovery plan
+        # Step 4: Build recovery plan
         recovery_plan = {
             "robot_id": robot_id,
             "status": "RECOVERY_INITIATED",
             "identification_time_ms": round(identification_time, 2),
             "hint": hint,
             "fms_acknowledged": fms_ack,
-            "action": f"Route to barcode in zone {hint['primary_zone']}",
+            "action": f"Route to barcode in zone {primary_zone}",
             "timestamp": time.time(),
         }
 
-        self._log(f"Cold start: {robot_id} -> zone {hint['primary_zone']} "
-                  f"(conf={hint['confidence']:.2f}, "
-                  f"ode={hint['ode_time_ms']:.1f}ms, "
+        self._log(f"Cold start: {robot_id} -> zone {primary_zone} "
+                  f"(conf={confidence:.2f}, "
+                  f"ode={hint.get('ode_time_ms', 0):.1f}ms, "
                   f"total={identification_time:.1f}ms)")
 
         return recovery_plan

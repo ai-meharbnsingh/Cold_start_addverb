@@ -728,13 +728,20 @@ class ZoneIdentifier:
             json.dump(data, f)
 
     def _load_last_state(self) -> Optional[str]:
-        """Load saved state from disk."""
+        """Load saved state from disk. Handles corrupt/partial files gracefully."""
         path = self.config.get("cold_start", {}).get(
             "saved_state_file", "/tmp/iogita_last_state.json"
         )
-        if os.path.exists(path):
+        if not os.path.exists(path):
+            return None
+        try:
             with open(path) as f:
-                data = json.load(f)
+                raw = f.read()
+            if not raw.strip():
+                return None
+            data = json.loads(raw)
+            if not isinstance(data, dict):
+                return None
             # Restore barcode tracker state
             self.barcode_tracker.last_barcode_row = data.get(
                 "barcode_row", 0
@@ -743,7 +750,9 @@ class ZoneIdentifier:
                 "barcode_col", 0
             )
             return data.get("zone")
-        return None
+        except (json.JSONDecodeError, ValueError, OSError, KeyError):
+            # Corrupt state file — ignore and recover without hint
+            return None
 
     def calibrate_zone(self, zone_name: str, robot_state: dict,
                        robot_type: str = "zippy10"):
