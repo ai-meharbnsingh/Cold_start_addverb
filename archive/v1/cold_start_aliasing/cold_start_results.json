@@ -1,0 +1,103 @@
+{
+  "experiment": "Cold Start + Perceptual Aliasing Demo",
+  "n_zones": 25,
+  "n_identical_shelf_zones": 6,
+  "cold_start": {
+    "true_zone": "SHELF_3",
+    "amcl_alone_time_sec": 5.0,
+    "iogita_time_sec": 5.0,
+    "speedup": 1.0,
+    "amcl_iterations": 50,
+    "iogita_amcl_iterations": 50
+  },
+  "aliasing_stress_test": {
+    "n_trials": 50,
+    "n_steps": 250,
+    "amcl_accuracy": 0.256,
+    "iogita_accuracy": 0.32,
+    "improvement": 1.2
+  },
+  "journey_results": [
+    {
+      "step": 1,
+      "true_zone": "DOCK_A",
+      "lidar_candidates": [
+        "DOCK_A"
+      ],
+      "iogita_resolved": "DOCK_A",
+      "method": "UNIQUE",
+      "correct": true
+    },
+    {
+      "step": 2,
+      "true_zone": "LANE_W",
+      "lidar_candidates": [],
+      "iogita_resolved": "UNKNOWN",
+      "method": "UNIQUE",
+      "correct": false
+    },
+    {
+      "step": 3,
+      "true_zone": "SHELF_1",
+      "lidar_candidates": [
+        "LANE_W",
+        "SHELF_1",
+        "MID_N",
+        "SHELF_2",
+        "LANE_E",
+        "SHELF_3",
+        "SHELF_4",
+        "LANE_W2",
+        "SHELF_5",
+        "MID_S",
+        "SHELF_6",
+        "LANE_E2"
+      ],
+      "iogita_resolved": "LANE_W",
+      "method": "AMBIGUOUS",
+      "correct": false
+    },
+    {
+      "step": 4,
+      "true_zone": "SHELF_3",
+      "lidar_candidates": [
+        "LANE_W",
+        "SHELF_1",
+        "MID_N",
+        "SHELF_2",
+        "LANE_E",
+        "SHELF_3",
+        "SHELF_4",
+        "LANE_W2",
+        "SHELF_5",
+        "MID_S",
+        "SHELF_6",
+        "LANE_E2"
+      ],
+      "iogita_resolved": "LANE_W",
+      "method": "GRAPH_NARROWED",
+      "correct": false
+    },
+    {
+      "step": 5,
+      "true_zone": "SHELF_5",
+      "lidar_candidates": [
+        "LANE_W",
+        "SHELF_1",
+        "MID_N",
+        "SHELF_2",
+        "LANE_E",
+        "SHELF_3",
+        "SHELF_4",
+        "LANE_W2",
+        "SHELF_5",
+        "MID_S",
+        "SHELF_6",
+        "LANE_E2"
+      ],
+      "iogita_resolved": "LANE_W",
+      "method": "GRAPH_NARROWED",
+      "correct": false
+    }
+  ]
+}

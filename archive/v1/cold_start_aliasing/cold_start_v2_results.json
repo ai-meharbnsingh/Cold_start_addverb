@@ -1,0 +1,24 @@
+{
+  "experiment": "Cold Start v2 \u2014 All 16 Features + Honest AMCL",
+  "n_zones": 25,
+  "n_features": 16,
+  "cold_start": {
+    "global_mean_iters": 3.7,
+    "constrained_mean_iters": 3.0,
+    "global_est_time_sec": 0.37,
+    "constrained_est_time_sec": 0.3,
+    "speedup": 1.2,
+    "global_accuracy": 1.0,
+    "constrained_accuracy": 1.0
+  },
+  "aliasing_journey": {
+    "accuracy": 1.0,
+    "correct": 8,
+    "total": 8
+  },
+  "stress_test": {
+    "fp_only_accuracy": 1.0,
+    "graph_accuracy": 0.99,
+    "improvement": 1.0
+  }
+}
