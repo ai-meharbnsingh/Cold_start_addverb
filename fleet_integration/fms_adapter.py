@@ -219,7 +219,7 @@ class FmsTcpAdapter:
             self.sock = None
             return False
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Close TCP connection."""
         if self.sock:
             try:
@@ -339,7 +339,7 @@ class ColdStartOrchestrator:
             return result
         return None
 
-    def _log(self, message: str):
+    def _log(self, message: str) -> None:
         """Log recovery events."""
         entry = {"time": time.time(), "msg": message}
         self.recovery_log.append(entry)

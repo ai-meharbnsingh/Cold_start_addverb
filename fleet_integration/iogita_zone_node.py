@@ -262,7 +262,7 @@ class BarcodeGridTracker:
         self.total_reads += 1
         self.successful_reads += 1
 
-    def update_barcode_failure(self):
+    def update_barcode_failure(self) -> None:
         """Called when barcode read fails."""
         self.consecutive_failures += 1
         self.total_reads += 1
@@ -338,7 +338,7 @@ class ZoneIdentifier:
         )
         self._build_zone_lookup()
 
-    def _build_zone_lookup(self):
+    def _build_zone_lookup(self) -> None:
         """Build barcode -> zone and graph_node -> zone lookup tables."""
         self.barcode_to_zone = {}
         self.node_to_zone = {}
@@ -376,7 +376,7 @@ class ZoneIdentifier:
 
         return adj
 
-    def build_network(self, fingerprints: dict = None):
+    def build_network(self, fingerprints: dict = None) -> None:
         """Build io-gita network from zone fingerprints."""
         cfg = self.config["engine"]
         self.net = Network(D=cfg["D"], beta=cfg["beta"],
@@ -712,7 +712,7 @@ class ZoneIdentifier:
             self.mismatch_counts[zone_name] = 0
         return None
 
-    def save_state(self):
+    def save_state(self) -> None:
         """Save current state to disk for cold start recovery."""
         path = self.config.get("cold_start", {}).get(
             "saved_state_file", "/tmp/iogita_last_state.json"
@@ -776,10 +776,10 @@ class ZoneIdentifier:
                 self.zone_fingerprints[zone_name] + features
             ) / 2.0
 
-    def save_fingerprints(self, path: str = "/tmp/iogita_fingerprints.npz"):
+    def save_fingerprints(self, path: str = "/tmp/iogita_fingerprints.npz") -> None:
         np.savez(path, **{k: v for k, v in self.zone_fingerprints.items()})
 
-    def load_fingerprints(self, path: str = "/tmp/iogita_fingerprints.npz"):
+    def load_fingerprints(self, path: str = "/tmp/iogita_fingerprints.npz") -> bool:
         if os.path.exists(path):
             data = np.load(path)
             self.zone_fingerprints = {k: data[k] for k in data.files}
