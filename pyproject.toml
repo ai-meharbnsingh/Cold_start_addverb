@@ -1,12 +1,70 @@
-[tool.poetry]
-name = "your-package-name"
-version = "0.1.0"
-description = "Your package description"
-authors = ["Your Name <you@example.com>"]
-
-[tool.poetry.dependencies]
-python = "^3.8"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sg-engine"
+version = "0.2.0"
+description = "Topological Reasoning on Attractor Networks — deterministic multi-hop planner over compositional Hopfield basins"
+readme = "README.md"
+license = "CC-BY-4.0"
+requires-python = ">=3.10"
+authors = [
+    {name = "Meharban Singh", email = "ai.meharbansingh@gmail.com"},
+]
+keywords = [
+    "hopfield-network", "attractor-dynamics", "topological-reasoning",
+    "transition-graph", "energy-landscape", "compositional-computing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+full = ["scipy>=1.10", "matplotlib>=3.7"]
+data = ["pandas>=2.0"]
+text = ["scikit-learn>=1.3"]
+api = ["fastapi>=0.100", "uvicorn>=0.20", "httpx>=0.24"]
+dev = ["pytest>=7.0", "ruff>=0.1"]
+all = [
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "httpx>=0.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+sg-engine = "sg_engine.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ai-meharbnsingh/io-gita"
+Repository = "https://github.com/ai-meharbnsingh/io-gita"
+Documentation = "https://doi.org/10.5281/zenodo.19097695"
+
+[tool.setuptools.packages.find]
+include = ["sg_engine*"]
+
+[tool.setuptools.package-data]
+"sg_engine" = ["demo/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests (fast, D=100-200)",
+    "integration: Integration tests (multiple modules)",
+    "api: Web API endpoint tests",
+    "slow: Performance tests (D=10000, long-running)",
+    "contract: Blueprint contract tests",
+    "e2e: End-to-end browser tests",
+]
