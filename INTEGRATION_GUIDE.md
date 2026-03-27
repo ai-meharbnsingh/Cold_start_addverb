@@ -1,109 +1,96 @@
-# io-gita Cold Start + Aliasing — Complete Integration Guide
+# io-gita Cold Start v2 — Integration Guide (Addverb Fleet_Core)
 
 **For:** Addverb Technologies
 **From:** Meharban Singh
 **Date:** 2026-03-27
-**Version:** 1.1
+**Version:** 2.0 — Aligned to fleet_core production architecture
 **License:** 7-day evaluation (expires 2026-04-03)
-**ROS:** Compatible with both ROS1 (Noetic) and ROS2 (Humble/Iron) — auto-detected
 
 ---
 
-## Quick Summary
+## The Problem
 
-io-gita solves two warehouse robot problems:
-1. **Cold Start** — Robot restarts -> 4-5 sec frozen -> io-gita reduces to <1 sec
-2. **Perceptual Aliasing** — Identical aisles confuse AMCL -> io-gita uses graph topology to resolve
+Robot restarts (crash, power cycle, FMS disconnect). It needs to re-localize
+on the barcode grid. Until it reads a barcode, it's blind — it doesn't know
+where it is on the map. Current behavior: drive slowly hoping to hit a barcode.
+Takes 10-30 seconds. During that time, the robot blocks an aisle and can't
+take tasks.
 
-**Your work:** Edit ONE config file + update zone coordinates in the AMCL hook.
-**Our work:** Provide the io-gita engine + zone identification node (ready to run).
+## The Solution
 
----
+io-gita provides instant zone identification (<1ms) from the robot's first
+telemetry message after restart. The FMS gets a zone hint immediately and
+routes the robot directly to the nearest barcode. Total recovery: <2 seconds.
 
-## Table of Contents
-
-1. [What's In This Package](#1-whats-in-this-package)
-2. [Prerequisites](#2-prerequisites)
-3. [Installation](#3-installation)
-4. [Configuration — WHAT YOU MODIFY](#4-configuration--what-you-modify)
-5. [Files YOU Modify (2 files)](#5-files-you-modify-2-files)
-6. [Files WE Provide (Do NOT Modify)](#6-files-we-provide-do-not-modify)
-7. [Step-by-Step Integration](#7-step-by-step-integration)
-8. [Testing and Debugging](#8-testing-and-debugging)
-9. [ROS Topic Reference](#9-ros-topic-reference)
-10. [Troubleshooting](#10-troubleshooting)
+**No new hardware. No new sensors. Uses what you already have.**
 
 ---
 
-## 1. What's In This Package
+## What's In This Package
 
 ```
-cold_start_addverb/
-├── README.md                      <- Read first
-├── INTEGRATION_GUIDE.md           <- THIS FILE (detailed steps)
-├── pyproject.toml                 <- pip install -e .
+io-gita-addverb-v2/
+├── README.md                           <- Read first
+├── INTEGRATION_GUIDE.md                <- THIS FILE
+├── pyproject.toml                      <- pip install -e .
 │
-├── sg_engine/                     <- io-gita engine (COMPILED BINARY — do NOT modify)
+├── sg_engine/                          <- io-gita engine (COMPILED — do NOT modify)
 │   ├── __init__.py
-│   ├── network.cpython-311-*.so   <- Compiled engine (no source code)
-│   └── atlas.py                   <- Transition graph (used by diagnostics)
+│   ├── network.cpython-311-*.so        <- Hopfield ODE engine binary
+│   └── atlas.py                        <- Transition graph mapper
 │
-├── sg_engine_locked/              <- License wrapper (7-day evaluation)
+├── sg_engine_locked/                   <- License wrapper (7-day eval)
 │   └── __init__.py
 │
-├── ros_integration/               <- ROS integration (ROS1 + ROS2 compatible)
-│   ├── warehouse_config.yaml      <- YOU EDIT THIS — your zone layout
-│   ├── amcl_hook_example.py       <- YOU EDIT THIS — zone-to-map coordinates
-│   └── iogita_zone_node.py        <- Zone identification node (ours — do NOT modify)
+├── fleet_integration/                  <- Fleet_core integration (TCP + REST)
+│   ├── warehouse_config.yaml           <- YOU EDIT: your barcode grid layout
+│   ├── iogita_zone_node.py             <- Zone identification engine (ours)
+│   ├── fms_adapter.py                  <- YOU EDIT: FMS connection details
+│   └── barcode_fallback_hook.py        <- Barcode failure handler (ours)
 │
-├── debug/                         <- Debug and diagnostic tools
-│   ├── iogita_diagnostics.py      <- Run FIRST after install
-│   └── ros2_debug_node.py         <- Live debug node for robot testing
+├── debug/                              <- Debug tools
+│   ├── iogita_diagnostics.py           <- Run FIRST after install
+│   └── fleet_debug_node.py             <- Live debug (reads TCP telemetry)
 │
-└── cold_start_aliasing/           <- Demo code + results (reference only)
-    ├── cold_start_v2.py           <- Full demo with 25 zones
-    ├── cold_start_demo.py         <- Simpler demo
-    ├── cold_start_results.json
-    ├── cold_start_v2_results.json
-    └── ENDPOINTS_COLD_START.md    <- All ROS topics documented
+└── cold_start_aliasing/                <- Demo + docs
+    ├── cold_start_v2_addverb.py        <- Full demo matching fleet_core
+    ├── ENDPOINTS_COLD_START.md         <- All endpoints documented
+    └── cold_start_results.json         <- Reference results
 ```
 
 ---
 
-## 2. Prerequisites
-
-**On the robot / development machine:**
+## Prerequisites
 
 ```bash
-# Python 3.11 required (compiled binary is Python 3.11)
+# Python 3.11 required (compiled binary is 3.11)
 python3 --version   # Must be 3.11.x
 
-# Required Python packages
+# Required packages
 pip install numpy scipy pyyaml
 
-# ROS1 (Noetic) OR ROS2 (Humble/Iron) — either works
-# Auto-detected at runtime. No code changes needed.
-rosversion -d       # ROS1: prints "noetic"
-ros2 --version      # ROS2: prints version
+# Fleet_core FMS running (for live integration)
+# Or: standalone mode works without fleet_core
 ```
 
-**Hardware:** No new hardware. Uses existing:
-- 2D LiDAR (`/scan` topic)
-- Wheel encoders (`/odom` topic)
-- IMU (`/imu/data` topic — optional but recommended)
+**Hardware required:** None new. Uses robot's existing:
+- Obstacle sensor (+-15deg, 1.5m range) — via TCP Protocol V1
+- Wheel encoders (odometry) — via TCP Protocol V1
+- Barcode reader (irayple) — tracked by io-gita
+- Battery monitor — via TCP Protocol V1
 
 ---
 
-## 3. Installation
+## Installation
 
 ```bash
-# Step 1: Clone / extract this package
-cd cold_start_addverb
+# Step 1: Extract package
+cd io-gita-addverb-v2
 
-# Step 2: Install io-gita engine
+# Step 2: Install
 pip install -e .
 
-# Step 3: Verify installation
+# Step 3: Verify
 python debug/iogita_diagnostics.py
 
 # Expected output:
@@ -113,6 +100,8 @@ python debug/iogita_diagnostics.py
 #   [OK] ODE dynamics: ODE converged
 #   [OK] Determinism: 3 runs -> identical output
 #   [OK] Cold start pipeline: Full pipeline: <200ms
+#   [OK] Protocol V1 parser: Parsed test message
+#   [OK] Barcode tracker: State tracking works
 #   SUMMARY: All systems operational
 
 # Step 4: Check license
@@ -121,314 +110,224 @@ python -c "from sg_engine_locked import license_info; license_info()"
 
 ---
 
-## 4. Configuration — WHAT YOU MODIFY
+## Configuration (2 Files)
 
-### There are TWO files you must customize:
+### File 1: `fleet_integration/warehouse_config.yaml`
 
-### File 1: `ros_integration/warehouse_config.yaml`
+Map your warehouse barcode grid to io-gita zones.
 
-This file defines YOUR warehouse layout. You provide:
-
-```yaml
-warehouse:
-  name: "YOUR_WAREHOUSE_NAME"         # <- Change this
-
-zones:
-  - name: "DOCK_A"                    # <- Your zone name
-    row: 0                            # <- Grid row (0-indexed)
-    col: 0                            # <- Grid column (0-indexed)
-    type: "dock"                      # <- dock | aisle | shelf | cross | hub | lane | mid
-    heading: 90                       # <- Typical robot heading entering zone (degrees)
-    dist_from_dock: 0                 # <- Approx distance from nearest dock (meters)
-    map_x: 5.0                        # <- X in YOUR map frame (meters)
-    map_y: 5.0                        # <- Y in YOUR map frame (meters)
-    map_zone_radius: 5.0              # <- Search radius for AMCL constraint (meters)
-
-  - name: "AISLE_1"
-    row: 0
-    col: 1
-    type: "aisle"
-    # ... add ALL your zones
-```
-
-### What you MUST fill in:
+**What you fill in:**
 
 | Field | What You Provide | Where to Get It |
 |-------|-----------------|-----------------|
-| `zones[].name` | Your zone names | Your warehouse map |
-| `zones[].row, col` | Grid position | Count from top-left of warehouse |
-| `zones[].type` | Zone type | dock / aisle / shelf / cross / hub / lane |
-| `zones[].map_x, map_y` | Map coordinates (m) | From your AMCL map (same frame) |
-| `zones[].heading` | Typical entry heading | Which direction robot usually faces |
+| `warehouse.max_rows/cols` | Grid dimensions | Your map config |
+| `zones[].name` | Zone names | Your warehouse zones |
+| `zones[].row, col` | Zone grid position | Your zone layout |
+| `zones[].type` | dock / aisle / shelf / cross / hub / lane / charging | Zone function |
+| `zones[].barcode_range` | Barcode IDs in this zone | Your barcode assignment table |
+| `zones[].graph_nodes` | A* node IDs in this zone | Your nav graph |
+| `zones[].center_x, center_y` | Zone center in grid coords | Your map |
+| `fms.host, fms.tcp_port` | FMS address | Your network config |
 
-### What you should NOT change:
+**What you do NOT change:**
 
 | Field | Why |
 |-------|-----|
 | `engine.D` | Must be 10000 (matches compiled binary) |
 | `engine.beta` | Tuned for optimal ODE convergence |
 | `engine.seed` | Changes patterns -> breaks calibration |
+| `cold_start.recovery_strategy` | Keep as "nearest_barcode" |
 
-### File 2: `ros_integration/amcl_hook_example.py`
+### File 2: `fleet_integration/fms_adapter.py`
 
-Update the `ZONE_COORDINATES` dictionary with your actual map coordinates:
+Update connection details at the top of the file:
 
 ```python
-ZONE_COORDINATES = {
-    "DOCK_A":   {"x":  5.0, "y":  5.0, "radius": 5.0},   # <- YOUR coordinates
-    "AISLE_1":  {"x": 15.0, "y":  5.0, "radius": 3.0},   # <- YOUR coordinates
-    # ... must match warehouse_config.yaml zone names
-}
+FMS_REST_HOST = "127.0.0.1"    # <- CHANGE if FMS is remote
+FMS_REST_PORT = 7012            # Addverb default
+FMS_TCP_HOST = "127.0.0.1"     # <- CHANGE if FMS is remote
+FMS_TCP_PORT = 65123            # Addverb default
 ```
 
-These coordinates must be in the same map frame as your AMCL `/map` topic.
-
 ---
 
-## 5. Files YOU Modify (2 files)
+## Step-by-Step Integration
 
-| # | File | What You Do | Effort |
-|---|------|-------------|--------|
-| 1 | `ros_integration/warehouse_config.yaml` | Fill in zone names, positions, types, map coordinates | 1-2 hours |
-| 2 | `ros_integration/amcl_hook_example.py` | Update `ZONE_COORDINATES` dict with your map coords | 30 min |
-
-That's it. Two files. Everything else runs as-is.
-
----
-
-## 6. Files WE Provide (Do NOT Modify)
-
-| File | Purpose | Why Not Modify |
-|------|---------|----------------|
-| `sg_engine/network.*.so` | Compiled Hopfield network + ODE engine | Binary — no source |
-| `sg_engine/atlas.py` | Transition graph mapper | Used internally by diagnostics |
-| `sg_engine/__init__.py` | Engine entry point | Import gate |
-| `sg_engine_locked/__init__.py` | 7-day license wrapper | Enforces evaluation window |
-| `ros_integration/iogita_zone_node.py` | Zone identification node | Core logic — do not touch |
-| `debug/iogita_diagnostics.py` | Diagnostic tool | Run to verify installation |
-| `debug/ros2_debug_node.py` | Live debug node | Optional monitoring |
-
----
-
-## 7. Step-by-Step Integration
-
-### Phase 1: Setup (Day 1)
+### Phase 1: Setup (30 min)
 
 ```bash
-# 1. Install
-pip install numpy scipy pyyaml
 pip install -e .
-
-# 2. Run diagnostics — ALL tests must pass
-python debug/iogita_diagnostics.py
-
-# 3. Run the demo — verify it completes
-python cold_start_aliasing/cold_start_v2.py
+python debug/iogita_diagnostics.py       # ALL must pass
+python fleet_integration/iogita_zone_node.py   # Standalone test
+python fleet_integration/fms_adapter.py        # Adapter demo
 ```
 
-### Phase 2: Configure (Day 1-2)
+### Phase 2: Configure (1-2 hours)
 
+1. Edit `fleet_integration/warehouse_config.yaml`:
+   - Add all your zones with barcode ranges and graph nodes
+   - Set FMS connection details
+
+2. Update `fleet_integration/fms_adapter.py`:
+   - Set FMS host/port if different from defaults
+
+3. Verify config:
 ```bash
-# 1. Edit warehouse_config.yaml with YOUR zone layout
-#    List ALL navigable zones with names, grid positions, types, map coordinates
-
-# 2. Update ZONE_COORDINATES in amcl_hook_example.py
-#    Must match the zone names in warehouse_config.yaml
-
-# 3. Verify config
 python -c "
 import yaml
-with open('ros_integration/warehouse_config.yaml') as f:
+with open('fleet_integration/warehouse_config.yaml') as f:
     cfg = yaml.safe_load(f)
 zones = cfg.get('zones', [])
-print(f'Zones defined: {len(zones)}')
+print(f'Zones: {len(zones)}')
 for z in zones:
-    print(f'  {z[\"name\"]:>12} ({z[\"row\"]},{z[\"col\"]}) type={z[\"type\"]}')
+    br = z.get('barcode_range', [0,0])
+    gn = z.get('graph_nodes', [])
+    print(f'  {z[\"name\"]:>12} ({z[\"row\"]},{z[\"col\"]}) '
+          f'type={z[\"type\"]:>8}  barcodes={br[0]}-{br[1]}  '
+          f'nodes={len(gn)}')
 "
 ```
 
-### Phase 3: Calibration Drive (Day 2-3)
+### Phase 3: Calibration Drive (30 min)
+
+Drive one robot through all zones. io-gita records sensor fingerprints.
 
 ```bash
-# Drive the robot through ALL zones once.
-# The iogita_zone_node records LiDAR fingerprints during this drive.
+# Start io-gita in calibration mode
+python -m fleet_integration.iogita_zone_node \
+    --config fleet_integration/warehouse_config.yaml \
+    --mode calibration \
+    --fms-host 127.0.0.1
 
-# ROS1:
-rosrun iogita iogita_zone_node.py \
-    _config_file:=ros_integration/warehouse_config.yaml \
-    _mode:=calibration
+# Drive robot through every zone (normal operation or manual)
+# io-gita reads TCP telemetry and records fingerprints per zone
 
-# ROS2:
-ros2 run iogita iogita_zone_node \
-    --ros-args -p config_file:=ros_integration/warehouse_config.yaml -p mode:=calibration
-
-# Drive robot through every zone. Fingerprints saved to /tmp/iogita_fingerprints.npz
+# When done, fingerprints saved to /tmp/iogita_fingerprints.npz
 ```
 
-### Phase 4: Deploy (Day 3-4)
+### Phase 4: Test Cold Start (30 min)
 
 ```bash
-# 1. Launch io-gita zone node (runs alongside your navigation stack)
+# Start io-gita in production mode
+python -m fleet_integration.iogita_zone_node \
+    --config fleet_integration/warehouse_config.yaml \
+    --mode production \
+    --fms-host 127.0.0.1
 
-# ROS1:
-rosrun iogita iogita_zone_node.py \
-    _config_file:=ros_integration/warehouse_config.yaml \
-    _mode:=production
+# In another terminal: simulate robot restart
+# Option A: Kill robot process and restart it
+# Option B: Disconnect TCP and reconnect
 
-# ROS2:
-ros2 run iogita iogita_zone_node \
-    --ros-args -p config_file:=ros_integration/warehouse_config.yaml -p mode:=production
-
-# 2. Launch the AMCL hook (auto-detects ROS1 or ROS2)
-# ROS1: rosrun your_package amcl_hook_example.py
-# ROS2: ros2 run your_package amcl_hook_example
-
-# 3. Monitor
-# ROS1: rostopic echo /iogita/zone
-# ROS2: ros2 topic echo /iogita/zone
+# Watch io-gita output:
+#   [io-gita] Cold start detected: zippy10_3
+#   [io-gita] Zone hint: SHELF_3 (conf=0.90, ode=0.8ms)
+#   [io-gita] Sent to FMS: route to barcode 55 in SHELF_3
+#   [io-gita] Barcode confirmed: recovery complete (1.3s)
 ```
 
-### Phase 5: Verify (Day 4-5)
+### Phase 5: Measure (1 hour)
 
-```bash
-# Test cold start: kill and restart AMCL
+Run 10 restart tests. Measure:
+- Time from restart to zone hint (should be <10ms)
+- Time from restart to barcode confirmed (should be <2 sec)
+- Zone identification accuracy (should be >85%)
 
-# ROS1:
-rosnode kill /amcl
-sleep 2
-roslaunch your_package amcl.launch
-
-# ROS2:
-ros2 lifecycle set /amcl shutdown
-sleep 2
-ros2 launch your_package amcl.launch.py
-
-# Watch: /iogita/zone_hint should publish within 100ms
-# Watch: AMCL should converge within 1 second (down from 4-5 sec)
-```
+Compare with baseline (without io-gita):
+- Time from restart to barcode found (typically 10-30 sec)
 
 ---
 
-## 8. Testing and Debugging
+## Integration Options
 
-### Run diagnostics anytime:
-```bash
-python debug/iogita_diagnostics.py
-python debug/iogita_diagnostics.py --benchmark    # Performance test
-python debug/iogita_diagnostics.py --check-license # License status
+### Option A: REST Sidecar (Simplest — No fleet_core Changes)
+
+io-gita runs as a separate process. Reads robot state from FMS REST API.
+Sends zone hints back via REST POST.
+
+```
+FMS (port 7012) <--REST--> io-gita <--REST--> FMS
 ```
 
-### Check debug log:
-```bash
-# Real-time tail
-tail -f /tmp/iogita_debug.jsonl | python -m json.tool
+**Addverb effort:** 0 code changes. io-gita reads existing REST endpoints.
+Zone hints are logged. Engineers review them during testing.
 
-# Check for errors
-grep '"level":"FAIL"' /tmp/iogita_debug.jsonl
+### Option B: REST Active (30 min fleet_core change)
+
+Same as Option A, but FMS actually acts on the zone hint:
+
+```cpp
+// Add to fleet_core RESTInterface:
+// When io-gita POSTs a zone hint, route the robot
+if (endpoint == "/api/robots/{id}/zone_hint") {
+    auto zone = body["primary_zone"];
+    auto node = body["nearest_barcodes"][0]["graph_node"];
+    fleetManager->routeToNode(robotId, node);
+}
 ```
 
-### Standalone test (no ROS needed):
-```bash
-python ros_integration/iogita_zone_node.py
-# Runs zone identification test without any ROS dependency
-```
+### Option C: TCP Inline (1 hour fleet_core change)
+
+io-gita sends hints directly in Protocol V1 format. Lowest latency.
+Requires adding IOGITA_HINT message type to the parser.
 
 ---
 
-## 9. ROS Topic Reference
+## Troubleshooting
 
-### Topics io-gita PUBLISHES (io-gita -> your system)
-
-| Topic | Type | When | Content |
-|-------|------|------|---------|
-| `/iogita/zone` | `std_msgs/String` | On zone change | Current zone name, e.g. `"SHELF_3"` |
-| `/iogita/zone_hint` | `std_msgs/String` | On cold start | JSON list: `["SHELF_1","SHELF_3","LANE_W"]` |
-| `/iogita/zone_confidence` | `std_msgs/Float32` | With every `/zone` | 0.0-1.0 confidence |
-| `/iogita/map_change` | `std_msgs/String` | On change detected | JSON alert |
-| `/iogita/debug` | `std_msgs/String` | Always (if enabled) | JSON debug blob |
-
-### Topics io-gita SUBSCRIBES TO (your system -> io-gita)
-
-| Topic | Type | What We Need | Already Exists? |
-|-------|------|-------------|-----------------|
-| `/scan` | `sensor_msgs/LaserScan` | 360-degree LiDAR ranges | YES (your LiDAR driver) |
-| `/odom` | `nav_msgs/Odometry` | Wheel position + heading | YES (your base driver) |
-| `/imu/data` | `sensor_msgs/Imu` | Orientation | YES (if you have IMU) |
-
-### Topic YOU ADD (one new subscription in your AMCL launch)
-
-```
-/iogita/zone_hint  ->  amcl_hook_example.py  ->  /initialpose
-```
-
-The hook reads the zone hint, looks up map coordinates, and publishes a constrained `/initialpose` to AMCL.
-
----
-
-## 10. Troubleshooting
-
-### "Import error: sg_engine not found"
+### "Zone identification wrong after restart"
 ```bash
-pip install -e /path/to/cold_start_addverb/
-python -c "from sg_engine.network import Network; print('OK')"
+# Check last saved state
+cat /tmp/iogita_last_state.json
+
+# Check fingerprints were calibrated
+python -c "import numpy as np; d=np.load('/tmp/iogita_fingerprints.npz'); print(list(d.keys()))"
+
+# Re-run calibration drive if fingerprints are stale
 ```
 
-### "Python version mismatch"
-The compiled `.so` requires Python 3.11. Check:
+### "FMS not receiving hints"
 ```bash
-python3 --version   # Must be 3.11.x
+# Test REST connectivity
+curl http://127.0.0.1:7012/api/robots
+
+# Check FMS adapter config
+grep -n "FMS_REST" fleet_integration/fms_adapter.py
+```
+
+### "ODE too slow (>10ms)"
+```bash
+# Run benchmark
+python debug/iogita_diagnostics.py --benchmark
+
+# D=10000 should complete in <2ms on modern hardware
+# If slow: check Python 3.11, check NumPy is using BLAS
 ```
 
 ### "License expired"
 Contact ai.meharbansingh@gmail.com for renewal or production license.
 
-### "Zone identification wrong"
-```bash
-# Check fingerprints were calibrated
-ls /tmp/iogita_fingerprints.npz
-
-# Re-run calibration drive if needed
-```
-
-### "Cold start still slow (>2 sec)"
-```bash
-# ROS1: rostopic echo /iogita/zone_hint
-# ROS2: ros2 topic echo /iogita/zone_hint
-
-# If empty -> io-gita node not running or /scan not publishing
-# Check your AMCL hook is subscribed to /iogita/zone_hint
-```
-
-### "Teleport detected (wrong zone after movement)"
-```bash
-grep "TELEPORT" /tmp/iogita_debug.jsonl
-# If frequent -> your warehouse_config.yaml adjacency is wrong
-# Add missing connections in adjacency_overrides
-```
-
 ---
 
-## Summary: What You Do vs What We Do
+## Summary
 
 | Task | Who | Effort |
 |------|-----|--------|
-| Install sg_engine | You | 5 min |
+| Install io-gita | You | 5 min |
 | Run diagnostics | You | 5 min |
 | Edit warehouse_config.yaml | You | 1-2 hours |
-| Update ZONE_COORDINATES in AMCL hook | You | 30 min |
-| Calibration drive (robot through all zones) | You | 30 min |
-| Verify cold start works | You | 30 min |
-| Provide io-gita engine (compiled) | Us | Done |
-| Provide zone identification node | Us | Done |
-| Provide debug tools | Us | Done |
+| Update FMS host/port | You | 5 min |
+| Calibration drive | You | 30 min |
+| Test cold start recovery | You | 30 min |
+| (Optional) Add REST handler in fleet_core | You | 30 min |
+| Provide io-gita engine + adapter | Us | Done |
 | Production license + support | Us | On request |
 
-**Total integration effort: 1-2 days**
+**Total integration effort: 1 day**
 
 ---
 
 **Contact:** ai.meharbansingh@gmail.com
-**License:** 7-day evaluation (expires 2026-04-03). Production license available on request.
+**License:** 7-day evaluation (expires 2026-04-03). Production license available.
 **Patent pending.** Unauthorized redistribution prohibited.
 
 *(c) 2026 Adaptive Mind / Meharban Singh*

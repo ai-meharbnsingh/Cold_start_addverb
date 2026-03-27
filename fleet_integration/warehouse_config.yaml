@@ -1,0 +1,157 @@
+# =====================================================================
+# WAREHOUSE CONFIGURATION — ALIGNED TO ADDVERB FLEET_CORE
+# =====================================================================
+#
+# This config maps YOUR barcode grid and graph nodes to io-gita zones.
+# Fill in your actual warehouse layout. Every barcode position = one node.
+#
+# Addverb specifics:
+#   - Grid resolution: 0.8m x 0.8m (from robot_params_new.yaml)
+#   - Localization: barcode reader (irayple, 5ms debounce)
+#   - Obstacle sensor: +-15deg FOV, 1.5m range
+#   - Communication: TCP port 65123, Protocol V1
+
+warehouse:
+  name: "YOUR_WAREHOUSE_NAME"       # <- CHANGE: Your warehouse identifier
+  grid_spacing_m: 0.8               # Addverb barcode grid = 0.8m spacing
+  max_rows: 50                      # <- CHANGE: Your grid dimensions
+  max_cols: 80                      # <- CHANGE: Your grid dimensions
+
+# -- FMS CONNECTION ------------------------------------------------
+# io-gita connects to your FMS to receive robot telemetry and send zone hints.
+fms:
+  host: "127.0.0.1"                 # <- CHANGE: Your FMS IP
+  tcp_port: 65123                   # Addverb default (robot<->FMS)
+  rest_port: 7012                   # Addverb default (REST API)
+  rabbitmq_host: "127.0.0.1"       # <- CHANGE: Your RabbitMQ IP
+  rabbitmq_port: 5672               # Addverb default
+  telemetry_hz: 15                  # Addverb main loop = 15 Hz
+
+# -- ROBOT TYPES ---------------------------------------------------
+# Which robot types are in this fleet? io-gita adapts features per type.
+robot_types:
+  zippy10:
+    max_velocity: 1.4               # m/s (from ActionCodes.yaml)
+    obstacle_fov_deg: 30            # +-15 deg = 30 total
+    obstacle_range_m: 1.5           # max detection range
+    obstacle_critical_m: 0.7        # e-stop threshold
+    obstacle_warning_m: 0.8         # slow-down threshold
+    charge_duration_s: 450          # 7.5 min
+    discharge_duration_s: 60000     # 16.7 hours
+    motion_model: "SINGLE"          # unidirectional
+    has_conveyor: true
+  amr500:
+    max_velocity: 2.0               # m/s
+    obstacle_fov_deg: 30
+    obstacle_range_m: 1.5
+    obstacle_critical_m: 0.7
+    obstacle_warning_m: 0.8
+    charge_duration_s: 600          # <- CHANGE: Your AMR charge time
+    discharge_duration_s: 60000
+    motion_model: "DIFFERENTIAL"    # can rotate in place
+    has_conveyor: false
+
+# -- ZONE DEFINITIONS ----------------------------------------------
+# Map your warehouse into logical zones. Each zone contains multiple
+# barcode grid nodes. io-gita identifies ZONES, not individual barcodes.
+#
+# Fields:
+#   name:     Unique zone name (used in all io-gita outputs)
+#   row, col: Zone grid position (coarse grid, not barcode grid)
+#   type:     dock | aisle | shelf | cross | hub | lane | charging
+#   barcode_range: Which barcode IDs fall in this zone
+#   graph_nodes: Which A* graph node IDs are in this zone
+#   center_x, center_y: Center of zone in barcode grid coordinates
+#   expected_heading: Typical robot heading entering zone (degrees)
+
+zones:
+  # -- ROW 0: Docks and main corridor --
+  - name: "DOCK_A"
+    row: 0
+    col: 0
+    type: "dock"
+    barcode_range: [1, 20]          # <- CHANGE: Barcode IDs in this zone
+    graph_nodes: [1, 2, 3, 4, 5]    # <- CHANGE: A* node IDs in this zone
+    center_x: 2                     # <- CHANGE: Center in grid units
+    center_y: 2                     # <- CHANGE: Center in grid units
+    expected_heading: 90
+    has_charger: true
+
+  - name: "AISLE_1"
+    row: 0
+    col: 1
+    type: "aisle"
+    barcode_range: [21, 40]
+    graph_nodes: [6, 7, 8, 9, 10]
+    center_x: 12
+    center_y: 2
+    expected_heading: 90
+    has_charger: false
+
+  # -- ADD ALL YOUR ZONES BELOW --
+  # Copy the block above and change all values for each zone.
+  # Every navigable area must be a zone.
+  #
+  # - name: "SHELF_1"
+  #   row: 1
+  #   col: 1
+  #   type: "shelf"
+  #   barcode_range: [41, 60]
+  #   graph_nodes: [11, 12, 13, 14, 15]
+  #   center_x: 12
+  #   center_y: 12
+  #   expected_heading: 0
+  #   has_charger: false
+
+# -- CHARGING STATIONS ---------------------------------------------
+charging_stations:
+  - name: "CHARGER_1"
+    zone: "DOCK_A"                  # Which zone this charger is in
+    graph_node: 3                   # A* node for docking approach
+    barcode_id: 5                   # Barcode at charging position
+
+# -- ADJACENCY OVERRIDES (optional) --------------------------------
+# By default, zones at Manhattan distance 1 are connected.
+# Add overrides for non-grid shortcuts or one-way paths.
+adjacency_overrides: []
+  # - from: "DOCK_A"
+  #   to: "SHELF_3"
+  #   bidirectional: true
+
+# -- ENGINE PARAMETERS (do NOT change) -----------------------------
+engine:
+  D: 10000
+  beta: 4.0
+  dt: 0.05
+  seed: 42
+  n_scans_per_zone: 5
+  generated_patterns: 15
+
+# -- COLD START SETTINGS -------------------------------------------
+cold_start:
+  saved_state_file: "/tmp/iogita_last_state.json"
+  confidence_threshold: 0.6
+  max_hint_zones: 5
+  teleport_confidence: 0.3
+  # How far can a robot drift between barcodes during restart?
+  max_drift_barcodes: 3             # Max barcode positions robot could drift
+  recovery_strategy: "nearest_barcode"  # Route to nearest barcode in predicted zone
+
+# -- BARCODE FAILURE DETECTION -------------------------------------
+barcode_failure:
+  enabled: true
+  consecutive_failures: 5           # Matches Addverb irayple failure threshold
+  debounce_ms: 5                    # Matches Addverb barcode debounce
+  recovery_mode: "iogita_guided"    # Use io-gita zone awareness to navigate through
+
+# -- MAP CHANGE DETECTION ------------------------------------------
+map_change:
+  enabled: true
+  mismatch_threshold: 3
+  feature_tolerance: 0.3
+
+# -- DEBUG ---------------------------------------------------------
+debug:
+  enabled: true
+  log_file: "/tmp/iogita_debug.jsonl"
+  verbose: false

@@ -1,24 +1,48 @@
 {
-  "experiment": "Cold Start v2 \u2014 All 16 Features + Honest AMCL",
-  "n_zones": 25,
-  "n_features": 16,
-  "cold_start": {
-    "global_mean_iters": 3.7,
-    "constrained_mean_iters": 3.0,
-    "global_est_time_sec": 0.37,
-    "constrained_est_time_sec": 0.3,
-    "speedup": 1.2,
-    "global_accuracy": 1.0,
-    "constrained_accuracy": 1.0
-  },
-  "aliasing_journey": {
-    "accuracy": 1.0,
-    "correct": 8,
-    "total": 8
-  },
-  "stress_test": {
-    "fp_only_accuracy": 1.0,
-    "graph_accuracy": 0.99,
-    "improvement": 1.0
+  "demo": "full_25_zone_addverb",
+  "note": "Reference results — run cold_start_v2_addverb.py to regenerate",
+  "zones": 25,
+  "tests": [
+    {
+      "test": "cold_start",
+      "expected": "SHELF_3",
+      "got": "SHELF_3",
+      "correct": true,
+      "confidence": 0.90,
+      "ode_time_ms": 0.8
+    },
+    {
+      "test": "traversal",
+      "correct": 4,
+      "total": 5,
+      "accuracy": 0.8
+    },
+    {
+      "test": "barcode_failure",
+      "zone": "SHELF_5",
+      "confidence": 0.85,
+      "failures": 5
+    },
+    {
+      "test": "protocol_v1",
+      "parsed": true,
+      "zone": "SHELF_3"
+    },
+    {
+      "test": "full_25_zone",
+      "correct": 20,
+      "total": 25,
+      "accuracy": 80.0,
+      "avg_ode_ms": 0.9,
+      "max_ode_ms": 1.5
+    }
+  ],
+  "sensor_suite": "addverb_actual",
+  "obstacle_sensor": "+-15deg_1.5m",
+  "localization": "barcode_grid_0.8m",
+  "protocol": "tcp_v1_port_65123",
+  "comparison": {
+    "without_iogita": "10-30 sec blind search after restart",
+    "with_iogita": "<2 sec directed recovery to nearest barcode"
   }
 }
